@@ -256,6 +256,42 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(requests,[])
         self.assertNotIn('pw ',(self.root/'result/events.txt').read_text())
 
+    def test_scratch_default_is_relative_to_config_and_isolated(self):
+        result,_=self.run_pipeline(lambda *_:'stop',mode='--analyze-only')
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+        provenance=json.loads((self.root/'result/provenance.json').read_text())
+        scratch=Path(provenance['scratch_dir'])
+        self.assertEqual(scratch.parent,self.root/'scratch')
+        self.assertTrue(scratch.name.startswith('wannier-'))
+        self.assertEqual(scratch.stat().st_mode & 0o777,0o700)
+        text=(self.root/'result/bands_0006/projwfc.in').read_text()
+        self.assertIn(str(scratch),text)
+        self.assertNotEqual(scratch,self.save)
+
+    def test_configured_scratch_is_used_by_all_stages(self):
+        self.config['scratch_dir']=str(self.root/'temporary scratch')
+        def choose(data,index):
+            return next(c['id'] for c in data['state']['candidates'] if c['id'].startswith('start_manual'))
+        result,_=self.run_pipeline(choose)
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+        scratch=Path(json.loads((self.root/'result/provenance.json').read_text())['scratch_dir'])
+        self.assertEqual(scratch.parent,self.root/'temporary scratch')
+        for name in ('bands_0006/nscf.in','bands_0006/projwfc.in','attempt_001/wannier.pw2wan'):
+            self.assertIn(str(scratch),(self.root/'result'/name).read_text())
+        self.assertEqual((self.save/'data-file-schema.xml').read_bytes(),self.original_xml)
+
+    def test_scratch_inside_source_save_is_rejected(self):
+        self.config['scratch_dir']=str(self.save/'nested')
+        self.config_path.write_text(json.dumps(self.config))
+        with self.assertRaisesRegex(ValueError,'outside the source'):
+            wf.Workflow(self.config_path).run(analyze_only=True)
+        self.assertFalse((self.save/'nested').exists())
+
+    def test_foreground_entry_point_accepts_help(self):
+        result=subprocess.run(['bash',str(wf.HOME/'run_autonomous.sh'),'--help'],capture_output=True,text=True,timeout=10)
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+        self.assertIn('--config',result.stdout)
+
     def test_window_capacity_checks_each_k(self):
         eig=np.array([[-2.,-.2,.2,4.],[-1.,.1,.3,5.]])
         plan={'num_wann':1,'num_bands':4,'exclude_bands':[],'outer':[-3,6],'frozen':[-.5,.5]}

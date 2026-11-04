@@ -1,6 +1,6 @@
 # Automated Wannier
 
-A runnable, Jev-directed Quantum ESPRESSO → fat-band analysis → Wannier90 workflow. The active decision rules are in `wannier_rules.json`; the old DFT-only workflow is preserved under `legacy_dft/` and is not used by the Wannier launcher.
+A runnable, Jev-directed Quantum ESPRESSO → fat-band analysis → Wannier90 workflow. The active decision rules are in `wannier_rules.json`.
 
 ## Run from an arbitrary calculation folder
 
@@ -12,13 +12,13 @@ Copy `wannier_config.example.json` into your calculation folder as `wannier_conf
 
 ```bash
 python3 -m pip install -r "/path/to/Automated_wannier/requirements.txt"
-bash "/path/to/Automated_wannier/run_wannier_autonomous.sh" --config wannier_config.json
+bash "/path/to/Automated_wannier/run_autonomous.sh" --config wannier_config.json
 ```
 
 To generate the NSCF/projection results and Python fat-band plots without querying Jev:
 
 ```bash
-bash "/path/to/Automated_wannier/run_wannier_autonomous.sh" --config wannier_config.json --analyze-only
+bash "/path/to/Automated_wannier/run_autonomous.sh" --config wannier_config.json --analyze-only
 ```
 
 Background execution uses `launch_autonomous.sh` with the same arguments. `QE_ENV_FILE` can name an environment setup script. For MPI, use argument arrays such as `"pw": ["mpirun", "-np", "8", "pw.x"]`. Set separate command arrays for the postprocessors as appropriate to your installation. The Wannier command must support standalone serial preprocessing and localization; use its supported launcher if supplying a parallel build.
@@ -40,7 +40,7 @@ Use `wannier_config.reuse.example.json`. Set `existing_nscf.folder` to the direc
 }
 ```
 
-The reuse example contains only the source NSCF folder, its filenames, and a new results directory. It does not need `qe_input`, `dft_output`, `initial_nbnd`, `mesh`, or executable command overrides. Set the placeholder folder and filenames to your actual files. Add `commands` only to override executable paths or enable MPI; the separate parallel example demonstrates those optional settings. The omitted seed, spin selection and target range use the documented defaults; collinear magnetic data still need an explicit spin channel.
+The reuse example selects the source NSCF folder, its filenames, a new results directory, and a scratch location. It does not need `qe_input`, `dft_output`, `initial_nbnd`, `mesh`, or executable command overrides. Set the placeholder folder and filenames to your actual files. Add `commands` only to override executable paths or enable MPI; the separate parallel example demonstrates those optional settings. The omitted seed, spin selection and target range use the documented defaults; collinear magnetic data still need an explicit spin channel.
 
 The normal launcher command is unchanged. This mode skips the initial pw.x run and starts at projwfc/Python analysis. The full saved NSCF wavefunctions (`wfc*.dat`/HDF5) must be inside the `.save` directory; the program copies it into private scratch so the source stays untouched. External/distributed wavefunction layouts are not automatically collected.
 
@@ -73,7 +73,7 @@ All source links and decision/action definitions are included in `wannier_rules.
 
 ## Outputs, recovery, and validation
 
-The configured work directory contains private scratch, band-analysis folders, one folder per localization attempt, Jev request/response snapshots, `history.json`, `provenance.json`, and `status.json`. Snapshots contain calculation data sent to TypeSafe; API keys are never written into them. `status.json` names the successful attempt folder and its plan.
+The configured work directory contains band-analysis folders, one folder per localization attempt, Jev request/response snapshots, `history.json`, `provenance.json`, and `status.json`. Snapshots contain calculation data sent to TypeSafe; API keys are never written into them. `status.json` names the successful attempt folder and its plan.
 
 Existing runs are preserved: choose a fresh `work_dir` to run again. A lock prevents concurrent writes. After an unclean kill, verify the runner has stopped before removing `.runner.lock`. The original save directory must remain stable while it is copied. Private save copies can consume substantial disk space.
 
@@ -108,3 +108,11 @@ The same QE source requires an explicit Gamma point for SCDM pivot selection. Sh
 ## Configuration selection
 
 The launcher reads `wannier_config.json` in the current working directory by default. Use `--config /path/to/wannier_config.json` when the configuration lives elsewhere. To reuse completed NSCF, the configuration needs a top-level `existing_nscf` entry. To generate NSCF, it needs `qe_input` and `dft_output`. A commands-only parallel configuration does not select a calculation. Missing input settings are rejected before creating a work directory, with the selected configuration path and instructions for both modes.
+
+## Scratch location and foreground launch
+
+Run `./run_autonomous.sh --config /path/to/wannier_config.json` to start in the foreground. Without `--config`, it reads `wannier_config.json` from the current directory. `run_wannier_autonomous.sh` remains available as the original entry point; `launch_autonomous.sh` starts the same workflow in the background.
+
+The `scratch_dir` configuration setting chooses a scratch base directory. It defaults to `./scratch`, relative to the configuration folder. For temporary storage set `"scratch_dir": "/tmp"`. Every invocation creates a separate `wannier-*` directory under that base, so independent calculations do not overwrite each other. The exact directory is printed before the copy starts and recorded as `scratch_dir` in the run's `provenance.json`.
+
+`existing_nscf.save_dir` selects the source data; `scratch_dir` selects where the working copy is created. The source save directory is preserved. Scratch remains after success or failure for inspection; remove the printed per-run directory only after its processes have stopped. Temporary filesystem retention and capacity depend on the remote machine.

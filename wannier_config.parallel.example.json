@@ -6,12 +6,36 @@
   },
   "seed": "wannier",
   "work_dir": "wannier_parallel_run",
-  "target_relative_ev": [-2.0, 2.0],
+  "target_relative_ev": [
+    -2.0,
+    2.0
+  ],
   "spin_component": "none",
   "commands": {
-    "pw": ["mpirun", "-np", "16", "pw.x"],
-    "projwfc": ["mpirun", "-np", "8", "projwfc.x"],
-    "pw2wannier": ["mpirun", "-np", "16", "pw2wannier90.x"],
-    "wannier": ["mpirun", "-np", "4", "wannier90.x"]
-  }
+    "pw": [
+      "mpirun",
+      "-np",
+      "16",
+      "pw.x"
+    ],
+    "projwfc": [
+      "mpirun",
+      "-np",
+      "8",
+      "projwfc.x"
+    ],
+    "pw2wannier": [
+      "mpirun",
+      "-np",
+      "16",
+      "pw2wannier90.x"
+    ],
+    "wannier": [
+      "mpirun",
+      "-np",
+      "4",
+      "wannier90.x"
+    ]
+  },
+  "scratch_dir": "./scratch"
 }

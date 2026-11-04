@@ -10,6 +10,7 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 import sys
 import time
 import urllib.error
@@ -427,6 +428,10 @@ class Workflow:
         if self.config.get('projectability_disentanglement'):
             self.rules['capabilities']['projectability_disentanglement'] = True
         self.work = (self.base/self.config.get('work_dir', 'wannier_run')).resolve()
+        scratch_setting=self.config.get('scratch_dir','./scratch')
+        if not isinstance(scratch_setting,str) or not scratch_setting.strip():
+            raise ValueError('scratch_dir must be a nonempty directory path')
+        self.scratch_root=(self.base/Path(scratch_setting).expanduser()).resolve()
         self.seed = self.config.get('seed', 'wannier')
         if not re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_.-]*', self.seed): raise ValueError('Invalid seed label')
         self.explicit_mesh = 'mesh' in self.config
@@ -516,7 +521,13 @@ class Workflow:
             requested=self.config.get('initial_nbnd',data['nbnd'])
             if requested!=data['nbnd']:
                 raise ValueError('Remove initial_nbnd when reusing NSCF; its saved band count is used and Jev can request expansion later')
-        self.scratch = self.work/'scratch'; self.scratch.mkdir(exist_ok=True)
+        if self.scratch_root==source_save or source_save in self.scratch_root.parents:
+            raise ValueError('scratch_dir must be outside the source .save directory')
+        self.scratch_root.mkdir(parents=True,exist_ok=True)
+        # A per-run directory avoids prefix collisions when several jobs use /tmp.
+        self.scratch=Path(tempfile.mkdtemp(prefix='wannier-',dir=self.scratch_root))
+        print('Scratch directory: '+str(self.scratch),flush=True)
+        print('Copying saved calculation into this run directory.',flush=True)
         destination = self.scratch/(self.prefix+'.save')
         if destination.exists(): raise ValueError('Refusing to overwrite existing scratch/save data')
         # Copy, never hard-link, QE save files: NSCF can overwrite them.
@@ -526,7 +537,7 @@ class Workflow:
         self.nbnd = data['nbnd'] if self.reuse else self.config.get('initial_nbnd', data['nbnd']+self.rules['defaults']['extra_bands'])
         if type(self.nbnd) is not int or not 1 <= self.nbnd <= self.rules['limits']['max_nscf_bands']:
             raise ValueError('initial_nbnd must be a positive integer within max_nscf_bands')
-        self.metadata = {'source_save':str(source_save), 'qe_input_sha256':hashlib.sha256(self.original.encode()).hexdigest(),
+        self.metadata = {'scratch_root':str(self.scratch_root),'scratch_dir':str(self.scratch),'source_save':str(source_save), 'qe_input_sha256':hashlib.sha256(self.original.encode()).hexdigest(),
                          'dft_output':str(self.output_path), 'input_path':str(input_path), 'reused_nscf':bool(self.reuse), 'config':{k:v for k,v in self.config.items() if not k.startswith('_')},
                          'rules_sha256':hashlib.sha256(json.dumps(self.rules,sort_keys=True).encode()).hexdigest()}
         dump(self.work/'provenance.json', self.metadata)

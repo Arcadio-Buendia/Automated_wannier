@@ -4,5 +4,6 @@
     "input": "nscf.in",
     "output": "nscf.out"
   },
-  "work_dir": "wannier_reuse_run"
+  "work_dir": "wannier_reuse_run",
+  "scratch_dir": "./scratch"
 }

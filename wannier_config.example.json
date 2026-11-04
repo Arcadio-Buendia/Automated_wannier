@@ -4,16 +4,32 @@
   "save_dir": "scratch/material.save",
   "seed": "wannier",
   "work_dir": "wannier_run",
-  "mesh": [4, 4, 4],
-  "target_relative_ev": [-2.0, 2.0],
+  "mesh": [
+    4,
+    4,
+    4
+  ],
+  "target_relative_ev": [
+    -2.0,
+    2.0
+  ],
   "spin_component": "none",
   "max_attempts": 48,
   "stage_timeout_seconds": 86400,
   "projectability_disentanglement": false,
   "commands": {
-    "pw": ["pw.x"],
-    "projwfc": ["projwfc.x"],
-    "pw2wannier": ["pw2wannier90.x"],
-    "wannier": ["wannier90.x"]
-  }
+    "pw": [
+      "pw.x"
+    ],
+    "projwfc": [
+      "projwfc.x"
+    ],
+    "pw2wannier": [
+      "pw2wannier90.x"
+    ],
+    "wannier": [
+      "wannier90.x"
+    ]
+  },
+  "scratch_dir": "./scratch"
 }
