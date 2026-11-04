@@ -1,0 +1,342 @@
+{
+  "schema_version": 1,
+  "purpose": "Jev selects validated Wannierization plans and repairs; Python carries out the chosen actions.",
+  "reviewed_on": "2026-10-30",
+  "questions": {
+    "decision": {
+      "type": "choice",
+      "instructions": "Choose one offered candidate ID using state.fatbands, current_plan, last_result, history and rules. Prefer the smallest chemically useful orbital manifold covering the target. All energies are absolute eV. Repair windows, orbital content, SCDM selection or optimizer settings before replacing a viable method. Candidate parameters are executable plans, not suggestions. Never invent a candidate. Select stop only when no offered action is reasonable.",
+      "criteria": {}
+    }
+  },
+  "defaults": {
+    "target_relative_ev": [
+      -2.0,
+      2.0
+    ],
+    "orbital_coverage": [
+      0.7,
+      0.9,
+      0.99
+    ],
+    "outer_padding_ev": 4.0,
+    "extra_bands": 8,
+    "num_iter": 1000,
+    "dis_num_iter": 1000,
+    "conv_tol": 1e-06,
+    "dis_conv_tol": 1e-06,
+    "search_shells": 36
+  },
+  "limits": {
+    "max_attempts": 48,
+    "max_nscf_bands": 512,
+    "max_iterations": 8000,
+    "scdm_sigma_max_ev": 8.0,
+    "repairs_per_action_per_method": 1,
+    "orbital_repairs_per_method": 2
+  },
+  "capabilities": {
+    "baseline": "Modern QE with SCDM support and Wannier90 >= 3.1; atomic projection needs a QE build implementing atom_proj.",
+    "projectability_disentanglement": false,
+    "projectability_note": "Enable only when the installed Wannier90 supports dis_froz_proj/dis_proj_min/dis_proj_max. Only normalized pseudo-atomic AMN is eligible; rounded fat-band weights are not substituted."
+  },
+  "methods": {
+    "scdm_erfc": {
+      "enabled": true,
+      "when": "Use for a valence/near-Fermi manifold with difficult hybridization or uncertain trial orbitals. Select isolated mode only if every retained band is included; otherwise use a smooth occupied-side selection.",
+      "source_ids": [
+        "scdm_tutorial",
+        "spinor_scdm"
+      ]
+    },
+    "manual": {
+      "enabled": true,
+      "when": "Use when fat-band weights identify useful atom/l shells. Generate per-site trial orbitals and count spinor components. Adjust shell coverage or radial extent before abandoning this approach.",
+      "source_ids": [
+        "projection_guide"
+      ]
+    },
+    "atomic": {
+      "enabled": true,
+      "when": "Use pseudopotential orbitals when the desired shells are present. Exclude irrelevant projectors and keep num_wann equal to the retained projector count. Unsupported builds must fall back to another method.",
+      "source_ids": [
+        "atomic_tutorial",
+        "pw2_input"
+      ]
+    },
+    "bloch_phases": {
+      "enabled": true,
+      "when": "Only for a sampled isolated contiguous band manifold after excluding all other bands, with num_bands equal to num_wann. Never combine with disentanglement. Sampled isolation does not prove topological triviality.",
+      "source_ids": [
+        "bloch_forum"
+      ]
+    },
+    "scdm_gaussian": {
+      "enabled": true,
+      "when": "Alternative SCDM selection for a bounded conduction or other finite-energy manifold; center on the target range rather than selecting all lower-energy states.",
+      "source_ids": [
+        "scdm_tutorial",
+        "scdm_fit"
+      ]
+    }
+  },
+  "decision_rules": [
+    {
+      "id": "fatbands_first",
+      "condition": "Existing converged DFT save is available",
+      "action": "Run full uniform-mesh NSCF and projwfc, then Python orbital-resolved CSV/plot analysis before the first Jev decision.",
+      "source_ids": [
+        "projwfc_input",
+        "spinor_scdm"
+      ]
+    },
+    {
+      "id": "bands_and_orbitals",
+      "condition": "Choosing num_wann and num_bands",
+      "action": "Use target-energy orbital weights and complete atom/l shells; distinguish spinor multiplicity and pseudo-atomic radial channels. Exclude only fixed band indices below the desired outer window. Request more NSCF bands when the target is truncated.",
+      "source_ids": [
+        "projection_guide",
+        "atomic_tutorial"
+      ]
+    },
+    {
+      "id": "window_capacity",
+      "condition": "Entangled retained bands",
+      "action": "At every k require outer count >= num_wann and frozen count <= num_wann. Widen outer or shrink/release frozen before switching methods. Window energies are absolute, not E-Ef.",
+      "source_ids": [
+        "frozen_forum",
+        "parameters"
+      ]
+    },
+    {
+      "id": "rank_deficient_projection",
+      "condition": "Singular projection, dis_project or ZGESVD failure",
+      "action": "Repair windows and trial orbital coverage first. For manual orbitals try another radial extent; for SCDM tune mu/sigma. Switch only after these finite local remedies have been tried.",
+      "source_ids": [
+        "projection_rank_forum",
+        "projection_guide",
+        "scdm_fit"
+      ]
+    },
+    {
+      "id": "incomplete_subspace",
+      "condition": "Too few outer states or missing unoccupied character",
+      "action": "Use available calculated states before increasing NSCF nbnd. Recompute projections and all dependent matrices after a band-pool change.",
+      "source_ids": [
+        "parameters"
+      ]
+    },
+    {
+      "id": "subspace_convergence",
+      "condition": "Disentanglement not converged",
+      "action": "Try window/orbital repair, gentler dis_mix_ratio, or more dis_num_iter; retain the initialization until applicable local repairs are exhausted.",
+      "source_ids": [
+        "parameters"
+      ]
+    },
+    {
+      "id": "spread_convergence",
+      "condition": "Localization stalls or oscillates",
+      "action": "Try additional iterations, smaller trial_step or fixed_step. Do not specify trial_step and fixed_step simultaneously. Only explicit manual centers enable guiding_centres.",
+      "source_ids": [
+        "parameters",
+        "projection_guide"
+      ]
+    },
+    {
+      "id": "automatic_projections",
+      "condition": "SCDM or pseudo-atomic initialization",
+      "action": "Use auto_projections without a manual projections block; write the chosen SCDM/atom_proj flags in pw2wannier90 input. SCDM still runs subsequent localization.",
+      "source_ids": [
+        "pw2_input",
+        "spinor_scdm"
+      ]
+    },
+    {
+      "id": "projectability_optional",
+      "condition": "Normalized pseudo-atomic projections and compatible build",
+      "action": "Offer projectability disentanglement only when explicitly enabled. Energy and projectability selection can interact; failures must remain visible.",
+      "source_ids": [
+        "projectability_tutorial"
+      ]
+    },
+    {
+      "id": "switch_priority",
+      "condition": "A chosen approach has failed",
+      "action": "Only offer another initialization after applicable untried local repair families are exhausted, or the current method is unsupported. Never endlessly repeat a failed plan.",
+      "source_ids": [],
+      "note": "Workflow policy requested by the user; the ordering is an engineering heuristic, not a theorem about which remedy will work."
+    },
+    {
+      "id": "success",
+      "condition": "Stopping criterion",
+      "action": "Require successful process exit, explicit localization convergence, disentanglement convergence when applicable, finite final spreads, checkpoint and Hamiltonian. Report sampled band mismatch without imposing publication-level accuracy.",
+      "source_ids": [
+        "output_guide"
+      ]
+    },
+    {
+      "id": "prerequisite_failure",
+      "condition": "Missing files, inconsistent k mesh, unavailable libraries, storage or runtime failure",
+      "action": "Stop with actionable diagnostics rather than changing the physical orbital model to conceal an infrastructure error.",
+      "source_ids": []
+    },
+    {
+      "id": "scdm_fit",
+      "condition": "Usable projectability versus energy variation",
+      "action": "Fit an erfc starting guess from projected weights; retain a target-aware cutoff and expose the fit quality to Jev. If the fit is unsuitable, use the target-centered heuristic.",
+      "source_ids": [
+        "scdm_fit"
+      ]
+    },
+    {
+      "id": "anisotropic_cell",
+      "condition": "Neighbor b-vector construction fails in an elongated cell",
+      "action": "Expand search_shells to 200 and rebuild preprocessing/matrices; stop if the mesh still cannot satisfy the finite-difference consistency condition. Do not bypass B1 tests.",
+      "source_ids": [
+        "parameters"
+      ]
+    }
+  ],
+  "actions": {
+    "start": {
+      "handler": "generate_inputs",
+      "effects": [
+        "win",
+        "pw2wan",
+        "preprocess",
+        "overlaps",
+        "localize"
+      ]
+    },
+    "widen_outer": {
+      "handler": "update_plan",
+      "effects": [
+        "outer energy bounds",
+        "reuse compatible matrices"
+      ]
+    },
+    "shrink_frozen": {
+      "handler": "update_plan",
+      "effects": [
+        "frozen energy bounds"
+      ]
+    },
+    "release_frozen": {
+      "handler": "update_plan",
+      "effects": [
+        "remove frozen constraints"
+      ]
+    },
+    "repair_orbitals": {
+      "handler": "prepare_plan",
+      "effects": [
+        "projected shells",
+        "num_wann",
+        "rebuild matrices"
+      ]
+    },
+    "radial": {
+      "handler": "update_plan",
+      "effects": [
+        "manual zona",
+        "rebuild projections"
+      ]
+    },
+    "tune_scdm": {
+      "handler": "update_plan",
+      "effects": [
+        "SCDM mu or sigma",
+        "rebuild AMN"
+      ]
+    },
+    "increase_bands": {
+      "handler": "bands_and_analysis",
+      "effects": [
+        "NSCF nbnd",
+        "fatbands",
+        "rebuild dependent matrices"
+      ]
+    },
+    "extend_iterations": {
+      "handler": "update_plan",
+      "effects": [
+        "num_iter or dis_num_iter"
+      ]
+    },
+    "damp_disentanglement": {
+      "handler": "update_plan",
+      "effects": [
+        "dis_mix_ratio"
+      ]
+    },
+    "reduce_trial_step": {
+      "handler": "update_plan",
+      "effects": [
+        "trial_step"
+      ]
+    },
+    "use_fixed_step": {
+      "handler": "update_plan",
+      "effects": [
+        "fixed_step",
+        "omit trial_step"
+      ]
+    },
+    "enable_projectability": {
+      "handler": "update_plan",
+      "effects": [
+        "projectability thresholds"
+      ]
+    },
+    "switch": {
+      "handler": "prepare_plan",
+      "effects": [
+        "new initialization",
+        "rebuild matrices"
+      ]
+    },
+    "stop": {
+      "handler": "stop",
+      "effects": [
+        "record incomplete status",
+        "nonzero exit"
+      ]
+    },
+    "disable_projectability": {
+      "handler": "update_plan",
+      "effects": [
+        "retain atomic projectors",
+        "use energy-only disentanglement"
+      ]
+    },
+    "raise_projectability_freeze": {
+      "handler": "update_plan",
+      "effects": [
+        "raise projectability freeze threshold"
+      ]
+    },
+    "expand_neighbor_search": {
+      "handler": "update_plan",
+      "effects": [
+        "larger neighbor-shell search",
+        "rebuild NN KP/MMN without skipping B1 consistency"
+      ]
+    }
+  },
+  "sources": {
+    "projection_guide": "https://wannier90.readthedocs.io/en/stable/user_guide/wannier90/projections/",
+    "parameters": "https://wannier90.readthedocs.io/en/stable/user_guide/wannier90/parameters/",
+    "output_guide": "https://wannier90.readthedocs.io/en/latest/user_guide/wannier90/files/",
+    "pw2_input": "https://www.quantum-espresso.org/Doc/INPUT_pw2wannier90.html",
+    "projwfc_input": "https://www.quantum-espresso.org/Doc/INPUT_PROJWFC.html",
+    "scdm_tutorial": "https://wannier90.readthedocs.io/en/stable/tutorials/tutorial_27/",
+    "spinor_scdm": "https://wannier90.readthedocs.io/en/stable/tutorials/tutorial_31/",
+    "scdm_fit": "https://wannier90.readthedocs.io/en/stable/tutorials/tutorial_32/",
+    "atomic_tutorial": "https://wannier90.readthedocs.io/en/stable/tutorials/tutorial_35/",
+    "projectability_tutorial": "https://wannier90.readthedocs.io/en/latest/tutorials/tutorial_34/",
+    "bloch_forum": "https://lists.quantum-espresso.org/pipermail/wannier/2021-January/001846.html",
+    "frozen_forum": "https://lists.quantum-espresso.org/pipermail/wannier/2017-February/001303.html",
+    "projection_rank_forum": "https://lists.quantum-espresso.org/pipermail/wannier/2011-December/000470.html"
+  }
+}
