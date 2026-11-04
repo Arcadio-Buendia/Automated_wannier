@@ -4,14 +4,5 @@
     "input": "nscf.in",
     "output": "nscf.out"
   },
-  "seed": "wannier",
-  "work_dir": "wannier_reuse_run",
-  "target_relative_ev": [-2.0, 2.0],
-  "spin_component": "none",
-  "commands": {
-    "pw": ["pw.x"],
-    "projwfc": ["projwfc.x"],
-    "pw2wannier": ["pw2wannier90.x"],
-    "wannier": ["wannier90.x"]
-  }
+  "work_dir": "wannier_reuse_run"
 }

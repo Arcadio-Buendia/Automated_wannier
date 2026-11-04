@@ -34,14 +34,13 @@ Use `wannier_config.reuse.example.json`. Set `existing_nscf.folder` to the direc
   "existing_nscf": {
     "folder": "/path/to/completed_nscf",
     "input": "nscf.in",
-    "output": "nscf.out",
-    "save_dir": "scratch/material.save"
+    "output": "nscf.out"
   },
-  "work_dir": "wannier_reuse_run",
-  "target_relative_ev": [-2, 2],
-  "spin_component": "none"
+  "work_dir": "wannier_reuse_run"
 }
 ```
+
+The reuse example contains only the source NSCF folder, its filenames, and a new results directory. It does not need `qe_input`, `dft_output`, `initial_nbnd`, `mesh`, or executable command overrides. Set the placeholder folder and filenames to your actual files. Add `commands` only to override executable paths or enable MPI; the separate parallel example demonstrates those optional settings. The omitted seed, spin selection and target range use the documented defaults; collinear magnetic data still need an explicit spin channel.
 
 The normal launcher command is unchanged. This mode skips the initial pw.x run and starts at projwfc/Python analysis. The full saved NSCF wavefunctions (`wfc*.dat`/HDF5) must be inside the `.save` directory; the program copies it into private scratch so the source stays untouched. External/distributed wavefunction layouts are not automatically collected.
 
@@ -105,3 +104,7 @@ In the [QE 7.5 pw2wannier90 source](https://github.com/QEF/q-e/blob/qe-7.5/PP/sr
 For SCDM, look in pw2wannier output for `Running QRCP in serial` versus `Running QRCP in parallel`. QE 7.5 enables the latter through its ScaLAPACK-QRCP build configuration; an MPI executable alone does not guarantee that factorization is distributed. More ranks can therefore fail to accelerate the dominant SCDM step. Benchmark wall time at a few rank counts on the same calculation before using a whole machine. See the [QE forum performance discussion](https://lists.quantum-espresso.org/pipermail/wannier/2020-November/001823.html) and [Wannier90 MPI usage](https://wannier90.readthedocs.io/en/latest/user_guide/wannier90/parameters/).
 
 The same QE source requires an explicit Gamma point for SCDM pivot selection. Shifted NSCF grids without Gamma can still be reused with the other supported initialization methods; SCDM candidates are not offered for those grids. The AMN reader accepts QE's SCDM mu/sigma metadata after the three integer dimensions.
+
+## Configuration selection
+
+The launcher reads `wannier_config.json` in the current working directory by default. Use `--config /path/to/wannier_config.json` when the configuration lives elsewhere. To reuse completed NSCF, the configuration needs a top-level `existing_nscf` entry. To generate NSCF, it needs `qe_input` and `dft_output`. A commands-only parallel configuration does not select a calculation. Missing input settings are rejected before creating a work directory, with the selected configuration path and instructions for both modes.

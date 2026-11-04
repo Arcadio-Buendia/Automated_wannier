@@ -417,6 +417,8 @@ class Workflow:
     def __init__(self, config_path):
         path = Path(config_path).resolve()
         self.config = json.loads(path.read_text())
+        if not isinstance(self.config, dict):
+            raise ValueError(f'Configuration {path} must contain a JSON object')
         self.config['_base'] = path.parent
         self.base = path.parent
         self.rules = json.loads((HOME/'wannier_rules.json').read_text())
@@ -433,6 +435,16 @@ class Workflow:
         if reuse is not None and (not isinstance(reuse,dict) or not reuse):
             raise ValueError('existing_nscf must be a folder path or an object with folder/input/output/save_dir')
         self.reuse = reuse
+        if self.reuse is None:
+            required=('qe_input','dft_output')
+            missing=[key for key in required if not isinstance(self.config.get(key),str) or not self.config[key].strip()]
+            if missing:
+                raise ValueError(
+                    f'Configuration {path} is missing: {", ".join(missing)}. '
+                    'To reuse completed NSCF, add existing_nscf with folder/input/output '
+                    '(see wannier_config.reuse.example.json). '
+                    'To generate new NSCF, set both qe_input and dft_output. '
+                    'Use --config to select the intended configuration file.')
         self.mesh = self.config.get('mesh', [4,4,4])
         if len(self.mesh)!=3 or any(type(x) is not int or x<1 for x in self.mesh): raise ValueError('mesh must contain three positive integers')
         target=self.config.get('target_relative_ev', self.rules['defaults']['target_relative_ev'])

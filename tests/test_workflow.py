@@ -219,6 +219,43 @@ class WorkflowTests(unittest.TestCase):
         self.assertIsNone(wf.prepare_plan('scdm_erfc','unused',{},data,self.rules['defaults']))
         self.assertIsNone(wf.prepare_plan('scdm_gaussian','unused',{},data,self.rules['defaults']))
 
+    def test_shipped_reuse_example_selects_existing_nscf(self):
+        commands=self.config['commands']
+        self.enable_existing_nscf()
+        self.config=json.loads((wf.HOME/'wannier_config.reuse.example.json').read_text())
+        self.config['existing_nscf']['folder']=str(self.root)
+        self.config['work_dir']='result'
+        self.config['commands']=commands
+        result,requests=self.run_pipeline(lambda *_:'stop',mode='--analyze-only')
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+        self.assertEqual(requests,[])
+        self.assertNotIn('pw ',(self.root/'result/events.txt').read_text())
+        self.assertTrue(json.loads((self.root/'result/provenance.json').read_text())['reused_nscf'])
+
+    def test_configuration_missing_inputs_is_actionable(self):
+        self.config.pop('qe_input');self.config.pop('dft_output')
+        self.config_path.write_text(json.dumps(self.config))
+        with self.assertRaises(ValueError) as caught:
+            wf.Workflow(self.config_path)
+        message=str(caught.exception)
+        for hint in ('qe_input','dft_output','existing_nscf','--config',str(self.config_path)):
+            self.assertIn(hint,message)
+        self.assertFalse((self.root/'result').exists())
+
+    def test_configuration_root_must_be_object(self):
+        self.config_path.write_text('[]')
+        with self.assertRaisesRegex(ValueError,'must contain a JSON object'):
+            wf.Workflow(self.config_path)
+        self.assertFalse((self.root/'result').exists())
+
+    def test_existing_nscf_needs_no_fresh_calculation_fields(self):
+        self.enable_existing_nscf()
+        self.config.pop('qe_input');self.config.pop('dft_output');self.config.pop('save_dir')
+        result,requests=self.run_pipeline(lambda *_:'stop',mode='--analyze-only')
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+        self.assertEqual(requests,[])
+        self.assertNotIn('pw ',(self.root/'result/events.txt').read_text())
+
     def test_window_capacity_checks_each_k(self):
         eig=np.array([[-2.,-.2,.2,4.],[-1.,.1,.3,5.]])
         plan={'num_wann':1,'num_bands':4,'exclude_bands':[],'outer':[-3,6],'frozen':[-.5,.5]}
