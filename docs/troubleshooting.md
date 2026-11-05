@@ -25,4 +25,3 @@ git -C ~/tools/Automated_wannier pull --ff-only
 ```
 
 Reload Python requirements if they change. Existing runs and source data are preserved; rerunning is an explicit new run with a new `work_dir`.
-

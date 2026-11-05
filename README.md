@@ -34,6 +34,6 @@ Follow progress with `tail -F wannier.log`. Timestamps use the machine's local t
 
 ## Documentation
 
-[Full documentation](docs/README.md) covers setup, configuration, running, troubleshooting, decision rules, and validation. The active Jev rules are in [knowledge/wannier_rules.json](knowledge/wannier_rules.json).
+[Full documentation](docs/README.md) covers setup, configuration, running, troubleshooting, and decision rules. The active Jev rules are in [knowledge/wannier_rules.json](knowledge/wannier_rules.json).
 
-Localization convergence is the stopping goal; interpolation accuracy and physical suitability need separate validation.
+Numerical convergence alone does not establish that the model is scientifically adequate.

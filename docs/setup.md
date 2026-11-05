@@ -93,4 +93,3 @@ TYPESAFE_API_KEY=your_actual_key
 ```
 
 The runner first checks the exported `TYPESAFE_API_KEY` environment variable. If it is absent or empty, it reads `.env` beside the selected configuration. An exported old key therefore takes precedence over a newer `.env` value. Credentials and personal calculation files belong outside the shared code checkout.
-
