@@ -8,7 +8,7 @@ import sys
 import tempfile
 import unittest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]/"workflow"))
 from extensions.run_logging import log, timestamp
 from wannier_workflow import Workflow
 

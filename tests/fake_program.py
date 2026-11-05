@@ -1,7 +1,7 @@
 """Contract-test stand-ins, never used by the production runner."""
 import json,re,sys
 from pathlib import Path
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"workflow"))
 from wannier_workflow import get_qe, clean_input
 from wannier_analysis import HA_EV
 

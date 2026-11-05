@@ -2,7 +2,24 @@
 
 A Jev-directed Quantum ESPRESSO → orbital-resolved band analysis → Wannier90 workflow. Start from either a completed SCF calculation or a completed full-mesh NSCF calculation. Python prepares valid candidate settings, Jev selects a method or repair, and the runner executes the resulting Wannierization stages.
 
-The active decision rules and their research sources are in [wannier_rules.json](wannier_rules.json). Configuration examples are provided for a [new NSCF calculation](wannier_config.example.json), [reusing NSCF](wannier_config.reuse.example.json), and [MPI execution](wannier_config.parallel.example.json).
+The active decision rules and their research sources are in [knowledge/wannier_rules.json](knowledge/wannier_rules.json). Configuration examples are provided for a [new NSCF calculation](examples/wannier_config.example.json), [reusing NSCF](examples/wannier_config.reuse.example.json), and [MPI execution](examples/wannier_config.parallel.example.json).
+
+## Repository layout and entry point
+
+Use **`./run_autonomous.sh`** for foreground execution or with your own `nohup`/log redirection. It launches the Python workflow directly. The optional `scripts/launch_autonomous.sh` helper starts it in the background; `scripts/run_wannier_autonomous.sh` is an alias for older integrations. The former top-level helper paths have moved into `scripts/`.
+
+```text
+run_autonomous.sh          main entry point
+workflow/                  Python workflow, analysis, and extension modules
+knowledge/                 Jev decision rules and source links
+examples/                  fresh, reuse, and parallel example configurations
+scripts/                   optional background helper and compatibility alias
+tests/                     workflow contract and logging checks
+README.md
+requirements.txt
+```
+
+Keep your own `wannier_config.json` and `.env` in the calculation folder. Paths in that config remain relative to its folder; launching from another directory works with `--config /path/to/wannier_config.json`. Repository updates do not move calculation results or scratch data.
 
 ## 1. Prerequisites
 
@@ -104,7 +121,7 @@ The runner first checks the exported `TYPESAFE_API_KEY` environment variable. If
 Copy and edit the minimal reuse example:
 
 ```bash
-cp ~/tools/Automated_wannier/wannier_config.reuse.example.json wannier_config.json
+cp ~/tools/Automated_wannier/examples/wannier_config.reuse.example.json wannier_config.json
 nano wannier_config.json
 ```
 
@@ -174,7 +191,7 @@ From the calculation folder, with the Python environment active:
 bash ~/tools/Automated_wannier/run_autonomous.sh --config wannier_config.json
 ```
 
-If the scripts and configuration are in the current folder, `./run_autonomous.sh` is equivalent. Without `--config`, the launcher reads `wannier_config.json` from the current working directory. `run_wannier_autonomous.sh` remains a compatible entry point.
+If the scripts and configuration are in the current folder, `./run_autonomous.sh` is equivalent. Without `--config`, the launcher reads `wannier_config.json` from the current working directory. Use this as the standard entry point. The older name is retained only as `scripts/run_wannier_autonomous.sh`, a compatibility alias.
 
 To keep running after closing the console, start a new job with:
 
@@ -185,7 +202,7 @@ echo $! > wannier.pid
 disown
 ```
 
-Use `disown` from an interactive Bash shell. Do not start another copy of an already running job. `launch_autonomous.sh --config ...` is an alternative background launcher; it appends console output to `wannier_autonomous.log` in the current directory. On a scheduled cluster, put the launch command in the site's batch job and use its allocation and launcher.
+Use `disown` from an interactive Bash shell. Do not start another copy of an already running job. `scripts/launch_autonomous.sh --config ...` is an alternative background launcher; it appends console output to `wannier_autonomous.log` in the current directory. On a scheduled cluster, put the launch command in the site's batch job and use its allocation and launcher.
 
 An analysis-only trial uses:
 
@@ -294,7 +311,7 @@ Reload Python requirements if they change. Existing runs and source data are pre
 
 ## 10. Decision rules and configurable limits
 
-`wannier_rules.json` contains the decision instructions, supported method descriptions, actions, defaults, bounds and source links. A different complete rules file can be selected using top-level `rules_file`. The executable handlers support the implemented methods/actions; adding an arbitrary new JSON action does not create a new handler.
+`knowledge/wannier_rules.json` contains the decision instructions, supported method descriptions, actions, defaults, bounds and source links. A different complete rules file can be selected using top-level `rules_file`. The executable handlers support the implemented methods/actions; adding an arbitrary new JSON action does not create a new handler.
 
 | Initialization | Selection constraint |
 | --- | --- |

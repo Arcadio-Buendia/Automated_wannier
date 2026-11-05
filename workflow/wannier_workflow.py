@@ -20,7 +20,7 @@ import numpy as np
 from extensions.run_logging import timestamp, log
 from wannier_analysis import read_qe_xml, analyze, window_counts, localization_result, interpolation_check
 
-HOME = Path(__file__).resolve().parent
+HOME = Path(__file__).resolve().parents[1]
 
 
 def dump(path, value):
@@ -426,7 +426,7 @@ class Workflow:
             raise ValueError(f'Configuration {path} must contain a JSON object')
         self.config['_base'] = path.parent
         self.base = path.parent
-        self.rules = json.loads((HOME/'wannier_rules.json').read_text())
+        self.rules = json.loads((HOME/'knowledge/wannier_rules.json').read_text())
         if self.config.get('rules_file'):
             self.rules = json.loads((self.base/self.config['rules_file']).read_text())
         if self.config.get('projectability_disentanglement'):

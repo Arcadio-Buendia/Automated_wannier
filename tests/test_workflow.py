@@ -3,7 +3,7 @@ from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from pathlib import Path
 from unittest.mock import patch
 import numpy as np
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"workflow"))
 import wannier_workflow as wf
 import wannier_analysis as wa
 from fake_program import xml
@@ -23,7 +23,7 @@ class WorkflowTests(unittest.TestCase):
                      'work_dir':'result','initial_nbnd':6,'target_relative_ev':[-1.,1.], 'max_attempts':12,
                      'commands':{k:[sys.executable,str(fake),v] for k,v in [('pw','pw'),('projwfc','projwfc'),('pw2wannier','pw2wannier'),('wannier','wannier')]}}
         self.config_path=self.root/'wannier_config.json'
-        self.rules=json.loads((wf.HOME/'wannier_rules.json').read_text())
+        self.rules=json.loads((wf.HOME/'knowledge/wannier_rules.json').read_text())
 
     def server(self,selector):
         requests=[]
@@ -45,7 +45,7 @@ class WorkflowTests(unittest.TestCase):
         if flag:
             (self.root/'result').mkdir();(self.root/'result'/flag).touch()
         env=dict(os.environ,TYPESAFE_API_KEY='contract-test-key',MPLCONFIGDIR=str(self.root/'mpl'))
-        command=[sys.executable,str(wf.HOME/'wannier_workflow.py'),'--config',str(self.config_path)]
+        command=[sys.executable,str(wf.HOME/'workflow/wannier_workflow.py'),'--config',str(self.config_path)]
         if mode:command.append(mode)
         result=subprocess.run(command,env=env,capture_output=True,text=True,timeout=90)
         return result,requests
@@ -226,7 +226,7 @@ class WorkflowTests(unittest.TestCase):
     def test_shipped_reuse_example_selects_existing_nscf(self):
         commands=self.config['commands']
         self.enable_existing_nscf()
-        self.config=json.loads((wf.HOME/'wannier_config.reuse.example.json').read_text())
+        self.config=json.loads((wf.HOME/'examples/wannier_config.reuse.example.json').read_text())
         self.config['existing_nscf']['folder']=str(self.root)
         self.config['work_dir']='result'
         self.config['commands']=commands
