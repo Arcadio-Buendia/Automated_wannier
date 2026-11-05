@@ -330,3 +330,9 @@ stage records its start, finish, exit code (or error), and elapsed seconds in
 attempt histories also include timestamps. Raw QE/Wannier output files retain
 their original format for analysis tools. Existing runs need to finish before
 updating; timestamps apply when the updated runner is launched.
+
+The fat-band stage disables both `lsym` and `kresolveddos` in `projwfc.in`.
+Python reads per-band orbital weights from the projection output, so a separate
+broadened PDOS calculation is unnecessary. This also avoids the downstream
+`partialdos` phase, where an affected QE/MPI installation can hang after printing
+the spilling parameter. A busy MPI rank alone does not demonstrate progress.

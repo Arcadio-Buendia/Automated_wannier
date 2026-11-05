@@ -591,8 +591,10 @@ class Workflow:
             raise ValueError('NSCF k-point coordinates/order differ from requested full mesh')
         # Preserve the exact saved coordinates/order for the Wannier interface.
         self.points=actual_points
+        # Fat bands use the printed per-band weights, not an energy-broadened DOS.
+        # Both flags must be false to bypass QE's separate partialdos MPI phase.
         projection = folder/'projwfc.in'
-        projection.write_text('&PROJWFC\n prefix = '+quote(self.prefix)+',\n outdir = '+quote(self.scratch)+",\n lsym = .false.,\n kresolveddos = .true.,\n filpdos = 'projected',\n/\n")
+        projection.write_text('&PROJWFC\n prefix = '+quote(self.prefix)+',\n outdir = '+quote(self.scratch)+",\n lsym = .false.,\n kresolveddos = .false.,\n filpdos = 'projected',\n/\n")
         if self.run_command('projwfc', folder, stdin=projection): raise RuntimeError('projwfc failed; see '+str(folder/'projwfc.out'))
         summary = analyze(data, folder/'projwfc.out', folder, tuple(self.config.get('target_relative_ev', self.rules['defaults']['target_relative_ev'])), self.rules['defaults']['orbital_coverage'])
         self.nbnd, self.data, self.summary = nbnd, data, summary

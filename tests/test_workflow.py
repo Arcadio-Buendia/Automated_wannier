@@ -96,6 +96,10 @@ class WorkflowTests(unittest.TestCase):
     def test_analysis_only_makes_no_api_requests(self):
         result,requests=self.run_pipeline(lambda *_:'stop',mode='--analyze-only')
         self.assertEqual(result.returncode,0,result.stdout+result.stderr);self.assertEqual(requests,[])
+        projection=(self.root/'result/bands_0006/projwfc.in').read_text()
+        self.assertEqual(wf.get_qe(projection,'PROJWFC','lsym'),'.false.')
+        self.assertEqual(wf.get_qe(projection,'PROJWFC','kresolveddos'),'.false.')
+        self.assertTrue((self.root/'result/latest_analysis.json').is_file())
 
     def test_jev_can_request_initial_band_expansion(self):
         self.config['initial_nbnd']=3
