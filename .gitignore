@@ -46,3 +46,5 @@ fatbands*
 latest_analysis.json
 attempt_*/
 bands_*/
+
+stage_events.jsonl

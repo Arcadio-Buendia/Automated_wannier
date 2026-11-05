@@ -17,6 +17,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 import numpy as np
+from extensions.run_logging import timestamp, log
 from wannier_analysis import read_qe_xml, analyze, window_counts, localization_result, interpolation_check
 
 HOME = Path(__file__).resolve().parent
@@ -164,8 +165,9 @@ class Jev:
         question = copy.deepcopy(self.rules['questions']['decision'])
         question['criteria'] = {c['id']: c['reason'] for c in candidates}
         question['criteria']['stop'] = 'No offered action is appropriate, or a prerequisite needs user intervention.'
+        log(f'Requesting Jev decision {index}')
         payload = {'model': self.config.get('model', 'jev-latest'),
-                   'state': dict(state, rules=self.rules['decision_rules'], candidates=candidates),
+                   'state': dict(state, requested_at=timestamp(), rules=self.rules['decision_rules'], candidates=candidates),
                    'questions': {'decision': question}}
         dump(self.work/f'decision_{index:03d}_request.json', payload)
         req = urllib.request.Request(self.config.get('typesafe_url', 'https://api.typesafe.ai/v1/systemone'),
@@ -182,9 +184,11 @@ class Jev:
                     raise RuntimeError(f'TypeSafe HTTP {exc.code}; no decision applied') from exc
             except (urllib.error.URLError, TimeoutError) as exc:
                 if attempt == 2: raise RuntimeError('TypeSafe unavailable; no decision applied') from exc
+            log(f'Jev request failed temporarily; retrying in {2 ** attempt} seconds')
             time.sleep(2 ** attempt)
         dump(self.work/f'decision_{index:03d}_response.json', response)
         choice = response.get('answers', {}).get('decision', {}).get('choice')
+        log(f'Jev decision {index}: {choice}')
         if choice == 'stop': return None
         chosen = next((c for c in candidates if c['id'] == choice), None)
         if chosen is None:
@@ -468,14 +472,32 @@ class Workflow:
         command = self.config.get('commands', {}).get(name, defaults[name])
         if not isinstance(command, list) or not command or any(not isinstance(a,str) for a in command):
             raise ValueError('Each commands entry must be a nonempty JSON argument array')
-        infile = Path(stdin).open('rb') if stdin else subprocess.DEVNULL
+        output_path = Path(cwd)/(output or name+'.out')
+        started = time.monotonic()
+        event = {'stage': name, 'cwd': str(cwd), 'output': str(output_path), 'started_at': timestamp()}
+        def record_event():
+            with (self.work/'stage_events.jsonl').open('a') as stream:
+                stream.write(json.dumps(event, allow_nan=False)+'\n')
+        record_event()
+        log(f'Starting {name}; output: {output_path}')
+        infile = None
         try:
-            with (Path(cwd)/(output or name+'.out')).open('wb') as out:
+            infile = Path(stdin).open('rb') if stdin else subprocess.DEVNULL
+            with output_path.open('wb') as out:
                 completed = subprocess.run(command + list(args), cwd=cwd, stdin=infile, stdout=out, stderr=subprocess.STDOUT,
                                            timeout=self.config.get('stage_timeout_seconds', 86400), check=False)
+            event['returncode'] = completed.returncode
             return completed.returncode
+        except Exception as exc:
+            event['error'] = type(exc).__name__+': '+str(exc)
+            raise
         finally:
             if hasattr(infile,'close'): infile.close()
+            event['finished_at'] = timestamp()
+            event['elapsed_seconds'] = round(time.monotonic()-started, 3)
+            record_event()
+            outcome = ('exit '+str(event['returncode'])) if 'returncode' in event else event.get('error', 'interrupted')
+            log(f'Finished {name}: {outcome}; elapsed {event["elapsed_seconds"]:.3f}s')
 
     def prepare(self):
         self.work.mkdir(parents=True, exist_ok=True)
@@ -526,8 +548,8 @@ class Workflow:
         self.scratch_root.mkdir(parents=True,exist_ok=True)
         # A per-run directory avoids prefix collisions when several jobs use /tmp.
         self.scratch=Path(tempfile.mkdtemp(prefix='wannier-',dir=self.scratch_root))
-        print('Scratch directory: '+str(self.scratch),flush=True)
-        print('Copying saved calculation into this run directory.',flush=True)
+        log('Scratch directory: '+str(self.scratch))
+        log('Copying saved calculation into this run directory.')
         destination = self.scratch/(self.prefix+'.save')
         if destination.exists(): raise ValueError('Refusing to overwrite existing scratch/save data')
         # Copy, never hard-link, QE save files: NSCF can overwrite them.
@@ -550,13 +572,13 @@ class Workflow:
         folder.mkdir()
         nscf=folder/'nscf.in'
         if reuse:
-            print(f'Reusing existing NSCF ({nbnd} bands); skipping pw.x',flush=True)
+            log(f'Reusing existing NSCF ({nbnd} bands); skipping pw.x')
             nscf.write_text(self.original)
             shutil.copy2(self.output_path,folder/'pw.out')
             dump(folder/'reuse.json',{'source_save':self.metadata['source_save'],'source_output':str(self.output_path),'pw_executed':False})
         else:
             nscf.write_text(make_nscf(self.original,self.scratch,self.prefix,self.pseudo,nbnd,self.points,self.structure))
-            print(f'Running NSCF ({nbnd} bands, {len(self.points)} k points)',flush=True)
+            log(f'Running NSCF ({nbnd} bands, {len(self.points)} k points)')
             code=self.run_command('pw',folder,stdin=nscf)
             output=(folder/'pw.out').read_text(errors='replace')
             if code or 'JOB DONE' not in output or 'convergence NOT achieved' in output:
@@ -574,7 +596,7 @@ class Workflow:
         if self.run_command('projwfc', folder, stdin=projection): raise RuntimeError('projwfc failed; see '+str(folder/'projwfc.out'))
         summary = analyze(data, folder/'projwfc.out', folder, tuple(self.config.get('target_relative_ev', self.rules['defaults']['target_relative_ev'])), self.rules['defaults']['orbital_coverage'])
         self.nbnd, self.data, self.summary = nbnd, data, summary
-        print('Fat-band data and plots: '+str(folder), flush=True)
+        log('Fat-band data and plots: '+str(folder))
         dump(self.work/'latest_analysis.json', {'folder':str(folder),'summary':summary})
 
     def initial_candidates(self):
@@ -671,7 +693,7 @@ class Workflow:
                     dump(self.work/'status.json',{'status':'stopped','localized':False,'reason':'No valid action or Jev selected stop'})
                     return 2
                 if 'increase_bands' in decision:
-                    self.history.append({'action':decision.get('family', decision['id']),'candidate_id':decision['id'],'method':plan['method'] if plan else None,'requested_nbnd':decision['increase_bands']})
+                    self.history.append({'timestamp':timestamp(),'action':decision.get('family', decision['id']),'candidate_id':decision['id'],'method':plan['method'] if plan else None,'requested_nbnd':decision['increase_bands']})
                     old_groups = next(c['groups'] for c in self.summary['orbital_candidates'] if c['id']==plan['orbital_set']) if plan else None
                     self.bands_and_analysis(decision['increase_bands'])
                     if plan is None:
@@ -688,15 +710,16 @@ class Workflow:
                     continue
                 plan=decision['plan']; validate_plan(plan,self.data)
                 self.tried.add(fingerprint(plan))
-                print(f"Attempt {i}: {plan['method']}, {plan['num_wann']} WFs / {plan['num_bands']} bands",flush=True)
+                log(f"Attempt {i}: {plan['method']}, {plan['num_wann']} WFs / {plan['num_bands']} bands")
+                started_at=timestamp()
                 result,folder=self.attempt(plan,i); last=result
                 dump(folder/'result.json', result)
-                self.history.append({'attempt':i,'action':decision.get('family', decision['id']),'candidate_id':decision['id'],'method':plan['method'],'plan':plan,'folder':str(folder),**result})
+                self.history.append({'started_at':started_at,'finished_at':timestamp(),'attempt':i,'action':decision.get('family', decision['id']),'candidate_id':decision['id'],'method':plan['method'],'plan':plan,'folder':str(folder),**result})
                 dump(self.work/'history.json',self.history)
                 if result['success']:
                     dump(self.work/'status.json',{'status':'localized','localized':True,'attempt':i,'folder':str(folder),'plan':plan,
                                                 'note':'Spread convergence reached; no independent-path accuracy requirement was imposed.'})
-                    print('Localization reached: '+str(folder),flush=True)
+                    log('Localization reached: '+str(folder))
                     return 0
                 candidates=recovery_candidates(plan,result,self.summary,self.data,self.rules,self.tried,self.history)
             dump(self.work/'status.json',{'status':'attempt_limit','localized':False})
@@ -717,6 +740,6 @@ def main():
     args=parser.parse_args()
     try: return Workflow(args.config).run(args.analyze_only)
     except (ValueError,RuntimeError,OSError,subprocess.TimeoutExpired,KeyError) as exc:
-        print('ERROR: '+str(exc),file=sys.stderr); return 1
+        log('ERROR: '+str(exc),file=sys.stderr); return 1
 
 if __name__=='__main__': sys.exit(main())

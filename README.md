@@ -321,3 +321,12 @@ python3 -m unittest discover -s ~/tools/Automated_wannier/tests -v
 ```
 
 Method references include the [projection guide](https://wannier90.readthedocs.io/en/stable/user_guide/wannier90/projections/), [SCDM tutorial](https://wannier90.readthedocs.io/en/stable/tutorials/tutorial_27/), [projectability fit tutorial](https://wannier90.readthedocs.io/en/stable/tutorials/tutorial_32/), [pseudo-atomic tutorial](https://wannier90.readthedocs.io/en/stable/tutorials/tutorial_35/), [Bloch-phase forum discussion](https://lists.quantum-espresso.org/pipermail/wannier/2021-January/001846.html), and [frozen-window forum discussion](https://lists.quantum-espresso.org/pipermail/wannier/2017-February/001303.html). Additional sources are in the rules file.
+
+Runner progress messages use UTC timestamps, for example
+`[2026-11-04T12:30:00+00:00] Starting pw; output: ...`. They are flushed
+immediately, including when redirected to a log with `nohup`. Each external
+stage records its start, finish, exit code (or error), and elapsed seconds in
+`<work_dir>/stage_events.jsonl`. Jev requests, retries, selections, and Wannier
+attempt histories also include timestamps. Raw QE/Wannier output files retain
+their original format for analysis tools. Existing runs need to finish before
+updating; timestamps apply when the updated runner is launched.
