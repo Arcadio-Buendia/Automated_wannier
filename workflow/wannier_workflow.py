@@ -692,6 +692,7 @@ class Workflow:
                        'method_switch_policy':'Only local repairs are offered until applicable untried repairs have been exhausted.'}
                 decision=jev.choose(state,candidates,i)
                 if decision is None:
+                    log('Workflow stopped: no valid recovery action or Jev selected stop. See status.json and the last attempt result/logs.')
                     dump(self.work/'status.json',{'status':'stopped','localized':False,'reason':'No valid action or Jev selected stop'})
                     return 2
                 if 'increase_bands' in decision:
@@ -715,6 +716,8 @@ class Workflow:
                 log(f"Attempt {i}: {plan['method']}, {plan['num_wann']} WFs / {plan['num_bands']} bands")
                 started_at=timestamp()
                 result,folder=self.attempt(plan,i); last=result
+                if not result.get('success'):
+                    log(f"Attempt {i} failed at {result.get('stage', 'unknown')}: {result.get('failure_kind', 'unknown')}; logs: {folder}")
                 dump(folder/'result.json', result)
                 self.history.append({'started_at':started_at,'finished_at':timestamp(),'attempt':i,'action':decision.get('family', decision['id']),'candidate_id':decision['id'],'method':plan['method'],'plan':plan,'folder':str(folder),**result})
                 dump(self.work/'history.json',self.history)

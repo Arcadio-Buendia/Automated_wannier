@@ -1,9 +1,9 @@
 """Timestamped progress messages; preserve raw scientific program output formats."""
-from datetime import datetime, timezone
+from datetime import datetime
 
 
 def timestamp():
-    return datetime.now(timezone.utc).isoformat(timespec='seconds')
+    return datetime.now().astimezone().isoformat(timespec='seconds')
 
 
 def log(message, *, file=None):

@@ -339,8 +339,8 @@ python3 -m unittest discover -s ~/tools/Automated_wannier/tests -v
 
 Method references include the [projection guide](https://wannier90.readthedocs.io/en/stable/user_guide/wannier90/projections/), [SCDM tutorial](https://wannier90.readthedocs.io/en/stable/tutorials/tutorial_27/), [projectability fit tutorial](https://wannier90.readthedocs.io/en/stable/tutorials/tutorial_32/), [pseudo-atomic tutorial](https://wannier90.readthedocs.io/en/stable/tutorials/tutorial_35/), [Bloch-phase forum discussion](https://lists.quantum-espresso.org/pipermail/wannier/2021-January/001846.html), and [frozen-window forum discussion](https://lists.quantum-espresso.org/pipermail/wannier/2017-February/001303.html). Additional sources are in the rules file.
 
-Runner progress messages use UTC timestamps, for example
-`[2026-11-04T12:30:00+00:00] Starting pw; output: ...`. They are flushed
+Runner progress messages use the execution machine's local time zone, for example
+`[2026-11-04T12:30:00+05:30] Starting pw; output: ...`. They are flushed
 immediately, including when redirected to a log with `nohup`. Each external
 stage records its start, finish, exit code (or error), and elapsed seconds in
 `<work_dir>/stage_events.jsonl`. Jev requests, retries, selections, and Wannier
@@ -353,3 +353,10 @@ Python reads per-band orbital weights from the projection output, so a separate
 broadened PDOS calculation is unnecessary. This also avoids the downstream
 `partialdos` phase, where an affected QE/MPI installation can hang after printing
 the spilling parameter. A busy MPI rank alone does not demonstrate progress.
+
+Timestamps include the machine's UTC offset (`+05:30` means India time). A `TZ`
+environment setting is respected. Old log lines retain their original timestamps.
+A serial Wannier90 executable must run as one process: do not wrap it in a
+multiple-rank MPI command. Its output identifies a serial build; multiple copies
+can collide on `.werr` and other files. MPI-enabled QE steps can still use multiple
+ranks independently. Workflow failures and stops are also reported to the console.
